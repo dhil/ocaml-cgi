@@ -1,3 +1,7 @@
+# OCamlCGI
+**Note** this repository is a "fork" of https://www.lri.fr/~filliatr/ftp/ocaml/cgi/.
+
+## Original README
 ocamlcgi - Objective Caml library for writing CGIs
 Copyright (C) 1997 Daniel de Rauglaudre, INRIA
 Copyright (C) 1998 Jean-Christophe FILLIATRE
