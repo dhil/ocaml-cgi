@@ -1,5 +1,5 @@
 # OCamlCGI
-**Note** this repository is a "fork" of https://www.lri.fr/~filliatr/ftp/ocaml/cgi/.
+**Note** this repository is a OCaml 4.06 compatible "fork" of https://www.lri.fr/~filliatr/ftp/ocaml/cgi/.
 
 ## Original README
 ocamlcgi - Objective Caml library for writing CGIs
