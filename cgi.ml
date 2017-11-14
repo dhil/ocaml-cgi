@@ -32,44 +32,46 @@ let hexa_val conf =
 
 let raw_decode s =
   let rec need_decode i =
-    if i < String.length s then
-      match s.[i] with
+    if i < Bytes.length s then
+      match Bytes.get s i with
 	| '%' | '+' -> true
 	| _ -> need_decode (succ i)
     else false
   in
   let rec compute_len i i1 =
-    if i < String.length s then
+    if i < Bytes.length s then
       let i =
-        match s.[i] with
-          | '%' when i + 2 < String.length s -> i + 3
+        match Bytes.get s i with
+          | '%' when i + 2 < Bytes.length s -> i + 3
           | _ -> succ i
       in
 	compute_len i (succ i1)
     else i1
   in
   let rec copy_decode_in s1 i i1 =
-    if i < String.length s then
+    if i < Bytes.length s then
       let i =
-        match s.[i] with
-          | '%' when i + 2 < String.length s ->
-              let v = hexa_val s.[i + 1] * 16 + hexa_val s.[i + 2] in
-		s1.[i1] <- Char.chr v; i + 3
-          | '+' -> s1.[i1] <- ' '; succ i
-          | x -> s1.[i1] <- x; succ i
+        match Bytes.get s i with
+          | '%' when i + 2 < Bytes.length s ->
+              let v = hexa_val (Bytes.get s (i + 1)) * 16 + hexa_val (Bytes.get s (i + 2)) in
+	      Bytes.set s1 i1 (Char.chr v); i + 3
+          | '+' -> Bytes.set s1 i1 ' '; succ i
+          | x -> Bytes.set s1 i1 x; succ i
       in
 	copy_decode_in s1 i (succ i1)
     else s1
   in
   if need_decode 0 then
     let len = compute_len 0 0 in
-    let s1 = String.create len in
+    let s1 = Bytes.create len in
     copy_decode_in s1 0 0
   else 
     s
 
 let decode s =
-  let rs = raw_decode s in
+  let rs =
+    Bytes.to_string @@ raw_decode (Bytes.of_string s)
+  in
   let rec strip_heading_and_trailing_spaces s =
     if String.length s > 0 then
       if s.[0] == ' ' then
@@ -78,16 +80,16 @@ let decode s =
       else if s.[String.length s - 1] == ' ' then
         strip_heading_and_trailing_spaces
           (String.sub s 0 (String.length s - 1))
-      else 
+      else
 	s
-    else 
+    else
       s
   in
   strip_heading_and_trailing_spaces rs
 
 (* special characters must be encoded. According to RFC 1738 they are: *)
 
-let special = function 
+let special = function
   | '\000'..'\031' | '\127'..'\255'                      (* non US ASCII *)
   | '<' | '>' | '"' | '#' | '%'                          (* space should be here, but its encoding uses only one char *)
   | '{' | '}' | '|' | '\\' | '^' | '~' | '[' | ']' | '`' (* unsafe *)
@@ -95,45 +97,49 @@ let special = function
       -> true
   | '+' -> true
   | _ -> false
-      
+
 (* '"' *)
-      
+
 let encode s =
+  let bs = Bytes.of_string s in
   let rec need_code i =
-    if i < String.length s then
-      match s.[i] with
+    if i < Bytes.length bs then
+      match Bytes.get bs i with
         | ' ' -> true
 	| x -> if special x then true else need_code (succ i)
     else false
   in
   let rec compute_len i i1 =
-    if i < String.length s then
-      let i1 = if special s.[i] then i1 + 3 else succ i1 in
+    if i < Bytes.length bs then
+      let i1 = if special (Bytes.get bs i) then i1 + 3 else succ i1 in
 	compute_len (succ i) i1
     else i1
   in
   let rec copy_code_in s1 i i1 =
-    if i < String.length s then
+    if i < Bytes.length bs then
       let i1 =
-        match s.[i] with
-          | ' ' -> s1.[i1] <- '+'; succ i1
+        match Bytes.get bs i with
+          | ' ' -> Bytes.set s1 i1 '+'; succ i1
           | c ->
               if special c then
 		begin
-                  s1.[i1] <- '%';
-                  s1.[i1 + 1] <- hexa_digit (Char.code c / 16);
-                  s1.[i1 + 2] <- hexa_digit (Char.code c mod 16);
+                  let open Bytes in
+                  set s1 i1 '%';
+                  set s1 (i1 + 1) (hexa_digit (Char.code c / 16));
+                  set s1 (i1 + 2) (hexa_digit (Char.code c mod 16));
                   i1 + 3
 		end
-              else begin s1.[i1] <- c; succ i1 end
+              else begin Bytes.set s1 i1 c; succ i1 end
       in
       copy_code_in s1 (succ i) i1
-    else 
+    else
       s1
   in
   if need_code 0 then
-    let len = compute_len 0 0 in copy_code_in (String.create len) 0 0
-  else 
+    let len = compute_len 0 0 in
+    let code = copy_code_in (Bytes.create len) 0 0 in
+    Bytes.to_string code
+  else
     s
 
 
@@ -163,17 +169,17 @@ let string_starts_with s pref =
 (* parse_args: parsing of the CGI arguments *)
 
 let safe_getenv ?(fail_to_blank=false) s =
-  try 
+  try
     Sys.getenv s
-  with Not_found -> 
+  with Not_found ->
     if fail_to_blank then
       ""
     else
       failwith ("Cgi: the environment variable " ^ s ^ " is not set")
 
-let parse_args () = 
+let parse_args () =
   let req_method = safe_getenv "REQUEST_METHOD" in
-  let s = 
+  let s =
     if req_method = "GET" || req_method = "HEAD" then
       safe_getenv ~fail_to_blank:true "QUERY_STRING"
     else begin
@@ -181,9 +187,9 @@ let parse_args () =
       if req_method = "POST"
          && mime_type = "application/x-www-form-urlencoded" then begin
         let n = int_of_string (safe_getenv "CONTENT_LENGTH") in
-        let buf = String.create n in
+        let buf = Bytes.create n in
         really_input stdin buf 0 n;
-        buf
+        Bytes.to_string buf
       end else
         failwith ("Cgi: cannot handle " ^ req_method ^ " request with type " ^
                   mime_type)
@@ -193,7 +199,7 @@ let parse_args () =
   let one_assoc s =
     try
       let i = String.index s '=' in
-      String.sub s 0 i, 
+      String.sub s 0 i,
       decode (String.sub s (succ i) (String.length s - i - 1))
     with
       | Not_found -> s,""
@@ -263,7 +269,7 @@ let extract_field chunk =
 (* Same, for a list of chunks *)
 
 let rec extract_fields accu = function
-  | [] -> 
+  | [] ->
       accu
   | chunk :: rem ->
       extract_fields
@@ -294,8 +300,8 @@ let parse_multipart_args () =
   extract_fields []
     (Str.split (Str.regexp_string ("--" ^ boundary))
       (let data_len = int_of_string (safe_getenv "CONTENT_LENGTH") in
-       let data = String.create data_len in
-       really_input stdin data 0 data_len; data))
+       let data = Bytes.create data_len in
+       really_input stdin data 0 data_len; Bytes.to_string data))
 
 (*s PATH\_INFO *)
 
@@ -304,14 +310,15 @@ let path_info =
     match split '/' (Sys.getenv "PATH_INFO") with
       | _ :: t -> t
       | [] -> []
-  with Not_found -> 
+  with Not_found ->
     []
 
 let nth_path_info index =
   try
     List.nth path_info index
-  with Failure "nth" -> 
-    ""
+  with Failure msg ->
+    if String.compare msg "nth" = 0 then ""
+    else assert false
 
 (* content-type *)
 
