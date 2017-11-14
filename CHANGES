@@ -1,3 +1,7 @@
+version 0.8.1 14/11/2017
+=======================
+ o decode and encode use bytes buffers rather than raw string
+ manipulation, this fixes compatibility issues with OCaml 4.06.0
 
 version 0.8, 24/5/2006
 ======================
