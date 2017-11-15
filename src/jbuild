@@ -1,0 +1,10 @@
+(jbuild_version 1)
+
+(library
+ ((name cgi)
+  (public_name cgi)
+  (wrapped false)
+  (synopsis "OCaml library for writing CGIs")
+  (modes (native byte))
+  (libraries (str
+              bytes))))

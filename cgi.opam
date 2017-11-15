@@ -1,0 +1,18 @@
+opam-version: "1.2"
+maintainer: "rixed-opam@happyleptic.org"
+homepage: "https://www.lri.fr/~filliatr/ftp/ocaml/cgi/"
+name: "cgi"
+version: "0.8.1"
+
+available: [
+  ocaml-version >= "4.02.0"
+]
+
+build: [
+  [ "jbuilder" "subst" "-n" name ] {pinned}
+  [ "jbuilder" "build" "-j" jobs "-p" name ]
+]
+
+depends: [
+  "jbuilder" { build }
+]
